@@ -1,9 +1,28 @@
 #include <stdio.h>       /* standard I/O routines                     */
-#define __USE_GNU 
+#define __USE_GNU
 #include <pthread.h>     /* pthread functions and data structures     */
 #include <stdlib.h>      /* rand() and srand() functions              */
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <strings.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/stat.h>
 /* number of threads used to service requests */
 #define NUM_HANDLER_THREADS 3
+#define BufferSize 1024
+#define BIG_ENUF 4096 // For request header
+
+int sockfd, newsockfd, portno, clilen,Connect_Count=0;
+char buffer[BufferSize]; // for communicating with client
+pid_t pid;int BufferNdx; //
+FILE * F;
+struct stat S;// to find file length
+struct sockaddr_in serv_addr, cli_addr;
+int n;
+// some buffering for the child process
+char * TmpBuffer, *SavePtr, *FileName, *GetToken;
 
 
 /* global mutex for our program. assignment initializes it. */
@@ -32,6 +51,13 @@ struct request* last_request = NULL; /* pointer to last request.         */
  * input:     request number, linked list mutex.
  * output:    none.
  */
+
+ void error(char *msg)
+ {
+     perror(msg);
+     exit(1);
+ }
+
 void
 add_request(int request_num,
 	    pthread_mutex_t* p_mutex,
@@ -126,11 +152,61 @@ get_request(pthread_mutex_t* p_mutex)
 void
 handle_request(struct request* a_request, int thread_id)
 {
-    if (a_request) {
-	printf("Thread '%d' handled request '%d'\n",
-	       thread_id, a_request->number);
-	fflush(stdout);
-    }
+
+  //  memset(buffer, 0, BufferSize);
+
+    memset(buffer, 0, BufferSize);n = read(newsockfd,buffer,BufferSize-1);
+    if (n < 0) error("ERROR reading from socket");
+    printf("Here is the message: %s\n",buffer);
+    printf("%s\n",(TmpBuffer=strtok_r(buffer,"\n",&SavePtr)));
+    GetToken = strtok_r(TmpBuffer," ",&SavePtr);
+    printf("%s\n",GetToken);BufferNdx = 0;
+    GetToken = strtok_r(NULL," ",&SavePtr);
+    printf("%s After Get\n",GetToken);GetToken++;
+// now open the file and send it to client ?
+
+     if ((F =  fopen(GetToken,"r")) == NULL) printf("Bad Dog\n");
+            else printf("Good Dog\n");
+      int FileSize;
+    if ((fstat(fileno(F),&S)==-1)) error("failed fstat\n"); // Need file size
+    FileSize = S.st_size;
+// Looks ok -- now let's write the request header
+ // Let's just fill a buffer with header info using sprintf()
+    char Response[BIG_ENUF];int HeaderCount=0;
+    HeaderCount=0;//Use to know where to fill buffer with sprintf
+        HeaderCount+=sprintf( Response+HeaderCount,"HTTP/1.0 200 OK\r\n");
+        HeaderCount+=sprintf( Response+HeaderCount,"Server: Flaky Server/1.0.0\r\n");
+        char * fileType;
+        fileType = strtok_r(NULL,".", &SavePtr);
+        if(strcmp(fileType,"jpeg")==0){
+            printf("%s\n","JPEG" );
+            HeaderCount+=sprintf( Response+HeaderCount,"Content-Type: image/jpeg\r\n");
+        }
+        //For mp3
+        if(strcmp(fileType,"mp3")==0){
+          printf("%s\n","MP3" );
+            HeaderCount+=sprintf( Response+HeaderCount,"Content-Type: audio/mp3\r\n");
+        }
+        HeaderCount+=sprintf( Response+HeaderCount,"Content-Length:%d\r\n",FileSize);
+ // And finally to delimit header
+        HeaderCount+=sprintf( Response+HeaderCount,"\r\n");
+        // Let's echo that to stderr to be sure !
+        fprintf(stderr,"HeaderCount %d and Header\n",HeaderCount);
+        write(STDERR_FILENO, Response, HeaderCount);
+        write(newsockfd,Response,HeaderCount); // and send to client
+// Now Serve That File in one write to socket
+        char  *BigBuffer = malloc(FileSize+2);// Just being OCD -- Slack is 2
+        fread(BigBuffer,1,FileSize,F);
+        write(newsockfd,BigBuffer,FileSize);
+        free(BigBuffer);
+// Now close up this client's shop
+     close(newsockfd);
+
+  //   if (a_request) {
+	// printf("Thread '%d' handled request '%d'\n",
+	//        thread_id, a_request->number);
+	// fflush(stdout);
+  //   }
 }
 
 /*
@@ -210,21 +286,44 @@ main(int argc, char* argv[])
     }
     sleep(3);
     /* run a loop that generates requests */
-    for (i=0; i<600; i++) {
-	add_request(i, &request_mutex, &got_request);
+
+
 	/* pause execution for a little bit, to allow      */
 	/* other threads to run and handle some requests.  */
-	if (rand() > 3*(RAND_MAX/4)) { /* this is done about 25% of the time */
-	    delay.tv_sec = 0;
-	    delay.tv_nsec = 10;
-	    nanosleep(&delay, NULL);
-	}
+
+
+
+
+       if (argc < 2) {
+           fprintf(stderr,"ERROR, no port provided\n");
+           exit(1);
+       }
+       sockfd = socket(AF_INET, SOCK_STREAM, 0);
+       if (sockfd < 0)
+          error("ERROR opening socket");
+       memset( (char *) &serv_addr, 0, sizeof(serv_addr));
+       portno = atoi(argv[1]);
+       serv_addr.sin_family = AF_INET;
+       serv_addr.sin_addr.s_addr = INADDR_ANY;
+       serv_addr.sin_port = htons(portno);
+       if (bind(sockfd, (struct sockaddr *) &serv_addr,
+                sizeof(serv_addr)) < 0)
+                error("ERROR on binding");
+  while (Connect_Count < 10)
+  {
+        add_request(i, &request_mutex, &got_request);
+         listen(sockfd,5);
+        clilen = sizeof(cli_addr);
+        newsockfd =
+            accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+       if (newsockfd < 0) // exit server
+            error( "ERROR on accept");
+       // otherwise let's fork
     }
     /* now wait till there are no more requests to process */
     sleep(5);
 
     printf("Glory,  we are done.\n");
-    
+
     return 0;
 }
-
