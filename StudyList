@@ -1,0 +1,52 @@
+A0-
+Chapter 3
+  File descriptors
+  Structs
+
+A1-
+Chapter 5
+  File libraries
+	fopen, fwrite.. 
+	binary files
+
+Chapter 7
+	Modify the path on the fly
+	Environ.c
+ 	Usage of:
+	   Setjmp()
+	   Longjmp()
+	7.13 picture
+
+A2-
+  Binary search
+  
+
+A3-
+  Directories
+	lstat, lseek..
+
+
+A4-
+  Parallel Threads
+  Signal handlers
+
+A5-
+
+A6-
+  Sockets
+  Server
+  ThreadPool
+
+Question 13
+  dup2()
+  mkdir()
+
+Definitions
+
+Shell program
+  Signal handlers
+
+IPC Mechanisms
+  name and describe the usage
+
+
