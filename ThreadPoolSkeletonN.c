@@ -154,32 +154,44 @@ printf("%d newsocket",newsockfd);
     struct stat S;// to find file length
 
     FILE * F;
-    
+
     memset(buffer, 0, BufferSize);
     n = read(newsockfd,buffer,BufferSize-1);
     if (n < 0) error("ERROR reading from socket");
     printf("Here is the message: %s\n",buffer);
-     
+
     TmpBuffer=strtok_r(buffer,"\n",&SavePtr);
     GetToken = strtok_r(TmpBuffer," ",&SavePtr); 
-   BufferNdx = 0;
+    BufferNdx = 0;
     GetToken = strtok_r(NULL," ",&SavePtr); 
-     if(strcmp(GetToken,"/favicon.ico")==0){ pthread_exit(NULL);}
+    //if(strcmp(GetToken,"/favicon.ico")==0){ pthread_exit(NULL);}
     GetToken++;
     // now open the file and send it to client ? 
-   
-    if ((F =  fopen(GetToken,"r")) == NULL) error("Bad Dog\n");
-           else printf("Good Dog\n"); 
+
+
+   int check = 1;
+    if ((F =  fopen(GetToken,"r")) == NULL){ 
+	error("Bad Dog\n");
+	check = 0;
+}
+     else
+	printf("Good Dog\n");
+
       strtok_r(GetToken,".",&SavePtr);
-      fileType = strtok_r(NULL,".",&SavePtr);
+    fileType = strtok_r(NULL,".",&SavePtr);
     if ((fstat(fileno(F),&S)==-1)) error("failed fstat\n"); // Need file size 
     FileSize = S.st_size;
     // Looks ok -- now let's write the request header
     // Let's just fill a buffer with header info using sprintf()               
     HeaderCount=0;//Use to know where to fill buffer with sprintf 
-    HeaderCount+=sprintf( Response+HeaderCount,"HTTP/1.0 200 OK\r\n");
+	//IF check is 0 then 404 message
+    if(check ==  0){
+	HeaderCount+=sprintf( Response+HeaderCount, "HTTP/1.0 404 Error File Not Found\r\n");
+    }
+   else
+	HeaderCount+=sprintf( Response+HeaderCount,"HTTP/1.0 200 OK\r\n");
     HeaderCount+=sprintf( Response+HeaderCount,"Server: Flaky Server/1.0.0\r\n");
-   
+
     //if it is a jpg
     if(strcmp(fileType,"jpg")==0){
     HeaderCount+=sprintf( Response+HeaderCount,"Content-Type: image/jpeg\r\n");
