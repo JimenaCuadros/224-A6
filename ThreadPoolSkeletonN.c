@@ -171,7 +171,8 @@ printf("%d newsocket",newsockfd);
 
    int check = 1;
     if ((F =  fopen(GetToken,"r")) == NULL){ 
-	error("Bad Dog\n");
+	printf("BAD DOG");
+	//error("Bad Dog\n");
 	check = 0;
 }
      else
